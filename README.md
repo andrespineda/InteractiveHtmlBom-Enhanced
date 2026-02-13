@@ -139,17 +139,54 @@ The enhanced version uses the **JLCSearch API** (provided by tscircuit) for JLCP
 
 **API Endpoint**: `https://jlcsearch.tscircuit.com/components/list.json`
 
-### Digi-Key Integration
+### Digi-Key and Mouser Integration
 
-Digi-Key search redirects to Digi-Key's website with pre-filled search parameters. For full API integration with direct part lookups, a server-side backend would be required.
+**Current Implementation:**
+The current version provides **direct search links** to Digi-Key and Mouser websites with pre-filled search parameters. This allows quick navigation to supplier websites but does not provide real-time part data, pricing, or stock information.
 
-**Direct Search URL**: `https://www.digikey.com/en/products/filter?keywords=<search>`
+**Limitations:**
+- Requires manual clicking to view results
+- No pricing or stock information
+- Slower workflow compared to JLCPCB integration
 
-### Mouser Integration
+**Current URLs:**
+- Digi-Key: `https://www.digikey.com/en/products/filter?keywords=<search>`
+- Mouser: `https://www.mouser.com/ProductSearch/?Keyword=<search>`
 
-Mouser search redirects to Mouser's website with pre-filled search parameters. For full API integration, a server-side backend would be required.
+---
 
-**Direct Search URL**: `https://www.mouser.com/ProductSearch/?Keyword=<search>`
+### For Future Enhancement: Full API Integration
+
+**For real-time part data** from Digi-Key and Mouser APIs, you would need to implement a server-side backend. This would:
+
+1. Handle API authentication securely (store API keys server-side)
+2. Proxy API requests to avoid CORS issues
+3. Cache responses to reduce API calls
+4. Provide proper error handling and rate limiting
+5. Return JSON data to frontend for display
+
+**Benefits of Server-Side Integration:**
+- Real-time stock, pricing, and specifications
+- Automatic part data display in BOM
+- Better user experience
+- More reliable sourcing decisions
+- API rate limiting for production use
+
+**Implementation Options:**
+
+Would you like me to:
+
+1. **Keep current direct-link approach** (simpler, no backend needed)
+2. **Create a Python Flask/FastAPI backend** for full API integration (recommended for production)
+
+Let me know your preference and I'll implement accordingly!
+
+**For Future Enhancement:**
+If you'd like full API integration, consider creating a Python Flask or FastAPI backend that:
+- Stores API keys securely
+- Provides REST endpoints for part search
+- Returns JSON data to the frontend
+- Can be integrated with the existing HTML BOM UI
 
 ## Workflow Example
 
