@@ -305,8 +305,25 @@
         <div class="button-container hideonprint" style="float: left; margin: 0;">
           <button id="copy" title="Copy bom table to clipboard"
                onclick="saveBomTable('clipboard')"></button>
-          <button id="part-search" title="Search components from suppliers"
-               onclick="openPartSearch()" style="margin-left: 5px;">🔍 Parts</button>
+        </div>
+        <!-- Supplier Selection Buttons -->
+        <div class="hideonprint" style="float: left; margin-left: 10px; display: flex; gap: 5px; align-items: center;">
+          <span style="font-size: 12px; color: #666; margin-right: 5px;">Suppliers:</span>
+          <button id="btn-jlcpcb" title="Select JLCPCB" onclick="toggleSupplier('jlcpcb')"
+               style="padding: 5px 10px; border: 2px solid #1a73e8; background: white; color: #1a73e8; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">JLCPCB</button>
+          <button id="btn-digikey" title="Select Digi-Key" onclick="toggleSupplier('digikey')"
+               style="padding: 5px 10px; border: 2px solid #e74c3c; background: white; color: #e74c3c; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">DigiKey</button>
+          <button id="btn-mouser" title="Select Mouser" onclick="toggleSupplier('mouser')"
+               style="padding: 5px 10px; border: 2px solid #17a2b8; background: white; color: #17a2b8; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Mouser</button>
+        </div>
+        <!-- Action Buttons -->
+        <div class="hideonprint" style="float: right; display: flex; gap: 5px;">
+          <button id="btn-search-parts" title="Search all BOM components from selected suppliers" onclick="batchSearchParts()"
+               style="padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">🔍 Source Parts</button>
+          <button id="btn-clear" title="Clear all sourced part data" onclick="clearSourcedParts()"
+               style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Clear</button>
+          <button id="btn-save-bom" title="Save BOM to CSV file" onclick="saveSourcedBOM()"
+               style="padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">💾 Save</button>
         </div>
       </div>
       <div id="dbg"></div>
@@ -338,294 +355,419 @@
   </div>
 </div>
 
-<!-- Part Search Panel -->
-<div id="part-search-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9999; background:white; padding:20px; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.3); max-width:900px; max-height:85vh; overflow-y:auto; min-width:600px;">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
-    <h3 style="margin:0; color:#333; font-size:18px;">🔍 Component Parts Search</h3>
-    <button onclick="closePartSearch()" style="background:#dc3545; color:white; border:none; padding:8px 15px; border-radius:4px; cursor:pointer; font-size:16px;">✕</button>
+<!-- Progress Indicator -->
+<div id="batch-progress-panel" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9999; background:white; padding:30px; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.3); min-width:400px; text-align:center;">
+  <h3 style="margin:0 0 20px 0; color:#333;">🔍 Sourcing Parts...</h3>
+  <div style="background:#f0f0f0; border-radius:8px; overflow:hidden; margin-bottom:15px;">
+    <div id="batch-progress-bar" style="width:0%; background:#28a745; height:20px; transition: width 0.3s;"></div>
   </div>
-
-  <div id="search-input-section">
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
-      <div>
-        <label style="display:block; margin-bottom:5px; font-weight:bold; color:#555;">Component Value</label>
-        <input type="text" id="search-value" placeholder="e.g., 100K, 1uF, 2.2nH" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
-      </div>
-      <div>
-        <label style="display:block; margin-bottom:5px; font-weight:bold; color:#555;">Footprint (Package)</label>
-        <input type="text" id="search-footprint" placeholder="e.g., 0402, 0603, SOIC-8" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
-      </div>
-    </div>
-
-    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
-      <div>
-        <label style="display:block; margin-bottom:5px; font-weight:bold; color:#555;">Component Type</label>
-        <select id="search-type" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; font-size:14px;">
-          <option value="">All Types</option>
-          <option value="resistor">Resistor</option>
-          <option value="capacitor">Capacitor</option>
-          <option value="inductor">Inductor</option>
-          <option value="diode">Diode</option>
-          <option value="led">LED</option>
-          <option value="transistor">Transistor</option>
-          <option value="ic">IC</option>
-          <option value="oscillator">Oscillator</option>
-          <option value="connector">Connector</option>
-        </select>
-      </div>
-      <div>
-        <label style="display:block; margin-bottom:5px; font-weight:bold; color:#555;">Search Suppliers</label>
-        <div style="display:flex; gap:15px; padding-top:10px; flex-wrap:wrap;">
-          <label style="cursor:pointer; display:flex; align-items:center;">
-            <input type="checkbox" id="check-jlcpcb" checked style="margin-right:5px;"> JLCPCB
-          </label>
-          <label style="cursor:pointer; display:flex; align-items:center;">
-            <input type="checkbox" id="check-digikey" style="margin-right:5px;"> Digi-Key
-          </label>
-          <label style="cursor:pointer; display:flex; align-items:center;">
-            <input type="checkbox" id="check-mouser" style="margin-right:5px;"> Mouser
-          </label>
-        </div>
-      </div>
-    </div>
-
-    <button onclick="searchParts()" style="background:#28a745; color:white; border:none; padding:12px 25px; border-radius:4px; cursor:pointer; font-weight:bold; width:100%; font-size:16px; margin-bottom:15px;">🔍 Search Components</button>
-  </div>
-
-  <div id="search-loading" style="display:none; text-align:center; padding:40px 20px;">
-    <div style="font-size:18px; color:#666; margin-bottom:10px;">Searching suppliers...</div>
-    <div style="color:#999;">This may take a moment</div>
-  </div>
-
-  <div id="search-results"></div>
+  <div id="batch-progress-text" style="color:#666; font-size:14px;">Preparing...</div>
+  <div id="batch-progress-detail" style="color:#999; font-size:12px; margin-top:5px;"></div>
 </div>
-
-<div id="part-search-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9998;" onclick="closePartSearch()"></div>
+<div id="batch-progress-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9998;"></div>
 
 <script>
-// BOM Parts Sourcing API URL - injected from Python
-let BOM_API_URL = "http://localhost:3000";  // Default, will be replaced
-let partSearchCache = {};
-let apiConfigured = { jlcpcb: true, digikey: false, mouser: false };
+// ============================================
+// BOM PARTS SOURCING - BATCH SEARCH SYSTEM
+// ============================================
 
-// Check API configuration on load
-fetch(BOM_API_URL + '/api/config')
+let BOM_API_URL = "http://localhost:3000";
+let selectedSuppliers = new Set(['jlcpcb']); // Default to JLCPCB
+let sourcedParts = {}; // Store sourced parts by reference
+let apiConfigured = { jlcpcb: true, digikey: false, mouser: false };
+let batchSearchAborted = false;
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+  // Check API configuration
+  fetch(BOM_API_URL + '/api/config')
     .then(r => r.json())
     .then(data => {
-        if (data.suppliers) {
-            apiConfigured = {
-                jlcpcb: data.suppliers.jlcpcb?.configured || false,
-                digikey: data.suppliers.digikey?.configured || false,
-                mouser: data.suppliers.mouser?.configured || false
-            };
-        }
+      if (data.suppliers) {
+        apiConfigured = {
+          jlcpcb: data.suppliers.jlcpcb?.configured || false,
+          digikey: data.suppliers.digikey?.configured || false,
+          mouser: data.suppliers.mouser?.configured || false
+        };
+        updateSupplierButtonStates();
+      }
     })
-    .catch(e => console.error('API config check failed:', e));
+    .catch(e => {
+      console.error('API config check failed:', e);
+    });
+  
+  // Initialize supplier button states
+  updateSupplierButtonStates();
+});
 
-function openPartSearch() {
-  // Pre-fill with current selection if available
-  const selectedRow = document.querySelector('.bom-row.selected');
-  if (selectedRow) {
-    const valueCell = selectedRow.querySelector('.bom-value');
-    const footprintCell = selectedRow.querySelector('.bom-footprint');
-    if (valueCell) {
-      document.getElementById('search-value').value = valueCell.textContent.trim();
-    }
-    if (footprintCell) {
-      const footprintText = footprintCell.textContent.trim();
-      // Extract metric footprint (0402, 0603, etc.)
-      const metricMatch = footprintText.match(/\d{4}/);
-      if (metricMatch) {
-        document.getElementById('search-footprint').value = metricMatch[0];
+// ============================================
+// SUPPLIER SELECTION
+// ============================================
+
+function toggleSupplier(supplier) {
+  if (selectedSuppliers.has(supplier)) {
+    selectedSuppliers.delete(supplier);
+  } else {
+    selectedSuppliers.add(supplier);
+  }
+  updateSupplierButtonStates();
+}
+
+function updateSupplierButtonStates() {
+  const suppliers = ['jlcpcb', 'digikey', 'mouser'];
+  const colors = {
+    jlcpcb: { active: '#1a73e8', inactive: 'white' },
+    digikey: { active: '#e74c3c', inactive: 'white' },
+    mouser: { active: '#17a2b8', inactive: 'white' }
+  };
+  
+  suppliers.forEach(s => {
+    const btn = document.getElementById('btn-' + s);
+    if (btn) {
+      const isSelected = selectedSuppliers.has(s);
+      const isConfigured = apiConfigured[s];
+      
+      btn.style.background = isSelected ? colors[s].active : colors[s].inactive;
+      btn.style.color = isSelected ? 'white' : colors[s].active;
+      
+      // Dim if not configured
+      if (!isConfigured && s !== 'jlcpcb') {
+        btn.style.opacity = '0.5';
+        btn.title = s.charAt(0).toUpperCase() + s.slice(1) + ' (API not configured)';
       } else {
-        document.getElementById('search-footprint').value = footprintText;
+        btn.style.opacity = '1';
+        btn.title = 'Select ' + s.charAt(0).toUpperCase() + s.slice(1);
       }
     }
-  }
-
-  document.getElementById('part-search-panel').style.display = 'block';
-  document.getElementById('part-search-overlay').style.display = 'block';
-  document.getElementById('search-value').focus();
-}
-
-function closePartSearch() {
-  document.getElementById('part-search-panel').style.display = 'none';
-  document.getElementById('part-search-overlay').style.display = 'none';
-}
-
-function searchParts() {
-  const value = document.getElementById('search-value').value.trim();
-  const footprint = document.getElementById('search-footprint').value.trim();
-  const type = document.getElementById('search-type').value;
-  const useJLCPCB = document.getElementById('check-jlcpcb').checked;
-  const useDigiKey = document.getElementById('check-digikey').checked;
-  const useMouser = document.getElementById('check-mouser').checked;
-
-  if (!value && !footprint) {
-    alert('Please enter a value or footprint to search');
-    return;
-  }
-
-  if (!useJLCPCB && !useDigiKey && !useMouser) {
-    alert('Please select at least one supplier');
-    return;
-  }
-
-  const cacheKey = `${value}-${footprint}-${type}-${useJLCPCB}-${useDigiKey}-${useMouser}`;
-
-  if (partSearchCache[cacheKey]) {
-    displaySearchResults(partSearchCache[cacheKey]);
-    return;
-  }
-
-  document.getElementById('search-input-section').style.display = 'none';
-  document.getElementById('search-loading').style.display = 'block';
-
-  const suppliers = [];
-  if (useJLCPCB) suppliers.push('jlcpcb');
-  if (useDigiKey) suppliers.push('digikey');
-  if (useMouser) suppliers.push('mouser');
-
-  // Call BOM Parts Sourcing API
-  fetch(BOM_API_URL + '/api/parts-search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      value: value,
-      footprint: footprint,
-      componentType: type,
-      suppliers: suppliers,
-      limit: 10
-    })
-  })
-  .then(response => response.json())
-  .then(data => {
-    document.getElementById('search-loading').style.display = 'none';
-    document.getElementById('search-input-section').style.display = 'block';
-    
-    if (data.success) {
-      const results = {};
-      
-      // Map API response to display format
-      for (const [supplier, parts] of Object.entries(data.results || {})) {
-        results[supplier] = parts.map(p => ({
-          supplier: p.supplier,
-          part_number: p.partNumber,
-          manufacturer: p.manufacturer,
-          manufacturer_part_number: p.manufacturerPartNumber,
-          description: p.description,
-          value: p.value,
-          footprint: p.footprint || p.package,
-          stock: p.stock,
-          price: p.price,
-          currency: p.currency,
-          url: p.url,
-          datasheet: p.datasheet,
-          lcsc_part: p.lcscPart,
-          image: p.image,
-          package: p.package
-        }));
-      }
-      
-      partSearchCache[cacheKey] = results;
-      displaySearchResults(results);
-    } else {
-      document.getElementById('search-results').innerHTML = 
-        '<div style="text-align:center; padding:30px; color:#dc3545;">Search failed: ' + 
-        (data.error || 'Unknown error') + '</div>';
-    }
-  })
-  .catch(error => {
-    document.getElementById('search-loading').style.display = 'none';
-    document.getElementById('search-input-section').style.display = 'block';
-    document.getElementById('search-results').innerHTML = 
-      '<div style="text-align:center; padding:30px; color:#dc3545;">Search error: ' + 
-      error.message + '<br><br><strong>Make sure the BOM Parts Sourcing API is running at ' + BOM_API_URL + '</strong><br><br>' +
-      'Run: <code style="background:#f0f0f0; padding:5px; border-radius:4px;">cd bom-parts-sourcing && bun run dev</code></div>';
   });
 }
 
-function displaySearchResults(results) {
-  const container = document.getElementById('search-results');
-  let html = '';
+// ============================================
+// BATCH SEARCH
+// ============================================
 
-  for (const [supplier, parts] of Object.entries(results)) {
-    if (!parts || parts.length === 0) continue;
-
-    const supplierColors = {
-      'JLCPCB': '#1a73e8',
-      'Digi-Key': '#e74c3c',
-      'Mouser': '#17a2b8'
-    };
-    const color = supplierColors[supplier] || '#666';
-
-    html += '<div style="margin-bottom:25px;">';
-    html += '<h4 style="margin:0 0 15px 0; color:' + color + '; border-bottom:3px solid ' + color + '; padding-bottom:8px; font-size:16px;">' + supplier + '</h4>';
-
-    for (const part of parts) {
-      const stockColor = part.stock > 0 ? '#28a745' : '#dc3545';
-      const stockText = part.stock > 0 ? part.stock.toLocaleString() + ' in stock' : 'Out of stock';
-      const stockBg = part.stock > 0 ? '#d4edda' : '#f8d7da';
-
-      html += '<div style="border:1px solid #ddd; border-radius:8px; padding:15px; margin-bottom:12px; background:#fff; box-shadow:0 2px 4px rgba(0,0,0,0.05); transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.1)\'" onmouseout="this.style.boxShadow=\'0 2px 4px rgba(0,0,0,0.05)\'">';
-
-      if (part.lcsc_part && supplier === 'JLCPCB') {
-        html += '<div style="background:#e3f2fd; color:#1a237e; padding:6px 12px; border-radius:4px; font-size:13px; margin-bottom:10px; display:inline-block; font-weight:bold;">LCSC: ' + part.lcsc_part + '</div>';
+async function batchSearchParts() {
+  if (selectedSuppliers.size === 0) {
+    alert('Please select at least one supplier');
+    return;
+  }
+  
+  // Get BOM entries from pcbdata
+  const bomEntries = getBOMEntriesForSearch();
+  if (bomEntries.length === 0) {
+    alert('No components to search');
+    return;
+  }
+  
+  // Show progress panel
+  const progressPanel = document.getElementById('batch-progress-panel');
+  const progressOverlay = document.getElementById('batch-progress-overlay');
+  const progressBar = document.getElementById('batch-progress-bar');
+  const progressText = document.getElementById('batch-progress-text');
+  const progressDetail = document.getElementById('batch-progress-detail');
+  
+  progressPanel.style.display = 'block';
+  progressOverlay.style.display = 'block';
+  batchSearchAborted = false;
+  
+  let processed = 0;
+  let matched = 0;
+  let notFound = 0;
+  let errors = 0;
+  
+  const suppliers = Array.from(selectedSuppliers);
+  
+  for (const entry of bomEntries) {
+    if (batchSearchAborted) break;
+    
+    processed++;
+    const percent = Math.round((processed / bomEntries.length) * 100);
+    progressBar.style.width = percent + '%';
+    progressText.textContent = `Processing ${processed} of ${bomEntries.length}...`;
+    progressDetail.textContent = `Searching: ${entry.value || entry.reference}`;
+    
+    try {
+      const result = await searchSinglePart(entry, suppliers);
+      if (result) {
+        matched++;
+        sourcedParts[entry.reference] = result;
+        updateBOMRowWithPart(entry.reference, result);
+      } else {
+        notFound++;
       }
-
-      html += '<div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap:12px; margin-bottom:10px;">';
-      html += '<div><strong style="color:#333;">Part #:</strong> ' + (part.part_number || '<em style="color:#999;">N/A</em>') + '</div>';
-      html += '<div><strong style="color:#333;">Mfg:</strong> ' + (part.manufacturer || '<em style="color:#999;">N/A</em>') + '</div>';
-      html += '<div style="background:' + stockBg + '; color:' + stockColor + '; padding:4px 8px; border-radius:4px; font-size:13px; text-align:center; font-weight:bold;">' + stockText + '</div>';
-      html += '</div>';
-
-      if (part.description) {
-        html += '<div style="color:#555; margin-bottom:10px; line-height:1.4;">' + part.description + '</div>';
-      }
-
-      html += '<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:10px;">';
-      html += '<div><strong style="color:#333;">Price:</strong> $' + part.price.toFixed(4) + '</div>';
-      html += '<div><strong style="color:#333;">Footprint:</strong> ' + (part.footprint || '<em style="color:#999;">N/A</em>') + '</div>';
-      html += '</div>';
-
-      html += '<div style="margin-top:12px; text-align:right; border-top:1px solid #eee; padding-top:10px;">';
-      html += '<a href="' + part.url + '" target="_blank" style="display:inline-block; background:' + color + '; color:white; padding:10px 25px; text-decoration:none; border-radius:5px; font-weight:bold; font-size:14px; transition: transform 0.2s;" onmouseover="this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.transform=\'translateY(0)\'">View Part →</a>';
-      if (part.datasheet) {
-        html += ' <a href="' + part.datasheet + '" target="_blank" style="display:inline-block; background:#6c757d; color:white; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold; font-size:14px; margin-left:10px; transition: transform 0.2s;" onmouseover="this.style.transform=\'translateY(-2px)\'" onmouseout="this.style.transform=\'translateY(0)\'">Datasheet</a>';
-      }
-      html += '</div>';
-
-      html += '</div>';
+    } catch (e) {
+      errors++;
+      console.error('Search error for', entry.reference, e);
     }
-
-    html += '</div>';
+    
+    // Small delay to avoid overwhelming the API
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
-
-  if (html === '') {
-    html = '<div style="text-align:center; padding:40px 20px; color:#666; font-size:16px;">🔍 No results found</div><div style="text-align:center; color:#999;">Try adjusting your search terms or select different suppliers</div>';
-  }
-
-  container.innerHTML = html;
+  
+  // Hide progress
+  progressPanel.style.display = 'none';
+  progressOverlay.style.display = 'none';
+  
+  // Show results
+  let message = `Parts Sourcing Complete!\n\n`;
+  message += `✅ Matched: ${matched}\n`;
+  message += `❌ Not Found: ${notFound}\n`;
+  if (errors > 0) message += `⚠️ Errors: ${errors}\n`;
+  message += `\nTotal processed: ${processed}`;
+  
+  alert(message);
 }
 
-// Close on escape key
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') {
-    closePartSearch();
+function getBOMEntriesForSearch() {
+  const entries = [];
+  
+  // Get the current BOM list
+  const bomList = getSelectedBomList();
+  
+  for (const bomentry of bomList) {
+    // Skip if filtered
+    if (filter && !entryMatches(bomentry)) continue;
+    
+    // Get references
+    let references = bomentry;
+    if (reflookup) {
+      references = findRefInEntry(bomentry);
+      if (references.length === 0) continue;
+    }
+    
+    // Get value and footprint
+    const refString = references.map(r => r[0]).join(', ');
+    const refIndex = references[0][1];
+    
+    const valueIndex = config.fields.indexOf("Value");
+    const footprintIndex = config.fields.indexOf("Footprint");
+    
+    const value = valueIndex >= 0 ? pcbdata.bom.fields[refIndex][valueIndex] : '';
+    const footprint = footprintIndex >= 0 ? pcbdata.bom.fields[refIndex][footprintIndex] : '';
+    
+    // Skip DNP or empty values
+    if (value && value.toUpperCase() !== 'DNP' && value.trim() !== '') {
+      entries.push({
+        reference: refString,
+        value: value,
+        footprint: extractFootprintCode(footprint),
+        refIndex: refIndex
+      });
+    }
   }
-});
+  
+  return entries;
+}
+
+function extractFootprintCode(footprint) {
+  if (!footprint) return '';
+  
+  // Extract metric code from footprint like "apollo4_SE:SMT_0201_0603Metric"
+  const metricMatch = footprint.match(/(\d{4})Metric/i);
+  if (metricMatch) return metricMatch[1];
+  
+  // Extract common patterns
+  const sizeMatch = footprint.match(/\b(\d{4})\b/);
+  if (sizeMatch) return sizeMatch[1];
+  
+  return '';
+}
+
+async function searchSinglePart(entry, suppliers) {
+  const response = await fetch(BOM_API_URL + '/api/parts-search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      value: entry.value,
+      footprint: entry.footprint,
+      suppliers: suppliers,
+      limit: 5
+    })
+  });
+  
+  if (!response.ok) {
+    throw new Error('API request failed');
+  }
+  
+  const data = await response.json();
+  if (!data.success) return null;
+  
+  // Select best part based on priority (JLCPCB first, then DigiKey, then Mouser)
+  let bestPart = null;
+  let bestScore = -1;
+  
+  for (const supplier of suppliers) {
+    const supplierKey = supplier === 'jlcpcb' ? 'JLCPCB' : 
+                        supplier === 'digikey' ? 'Digi-Key' : 'Mouser';
+    const parts = data.results[supplierKey] || [];
+    
+    for (const part of parts) {
+      const score = scorePart(part, supplier);
+      if (score > bestScore) {
+        bestScore = score;
+        bestPart = { ...part, supplierKey };
+      }
+    }
+  }
+  
+  return bestPart;
+}
+
+function scorePart(part, supplier) {
+  let score = 0;
+  
+  // In stock is critical
+  if (part.stock > 0) score += 1000;
+  
+  // Higher stock is better
+  score += Math.min(part.stock / 100000, 100);
+  
+  // Lower price is better
+  if (part.price > 0) {
+    score += Math.max(0, 50 - part.price * 10);
+  }
+  
+  // Prefer JLCPCB for LCSC parts
+  if (supplier === 'jlcpcb' && part.lcscPart) score += 100;
+  
+  return score;
+}
+
+function updateBOMRowWithPart(reference, part) {
+  // Find the BOM row and add sourced info
+  const bomRows = document.querySelectorAll('#bombody tr');
+  
+  bomRows.forEach(row => {
+    const refCell = row.querySelector('td:first-of-type + td');
+    if (refCell && refCell.textContent.includes(reference.split(',')[0])) {
+      // Add sourced part indicator
+      row.classList.add('sourced');
+      row.style.backgroundColor = part.supplierKey === 'JLCPCB' ? '#e8f5e9' : '#fff3e0';
+      
+      // Add part number tooltip or cell
+      row.title = `${part.supplierKey}: ${part.manufacturerPartNumber || part.partNumber}\nStock: ${part.stock?.toLocaleString() || 'N/A'}\nPrice: $${(part.price || 0).toFixed(4)}`;
+      
+      // Add visual indicator to first cell
+      const firstCell = row.querySelector('td');
+      if (firstCell && !firstCell.querySelector('.sourced-indicator')) {
+        const indicator = document.createElement('span');
+        indicator.className = 'sourced-indicator';
+        indicator.style.cssText = 'margin-left:5px;font-size:10px;background:#28a745;color:white;padding:2px4px;border-radius:3px;';
+        indicator.textContent = '✓';
+        firstCell.appendChild(indicator);
+      }
+    }
+  });
+}
+
+// ============================================
+// CLEAR SOURCED PARTS
+// ============================================
+
+function clearSourcedParts() {
+  if (Object.keys(sourcedParts).length === 0) {
+    alert('No parts to clear');
+    return;
+  }
+  
+  if (!confirm('Clear all sourced part data?')) return;
+  
+  sourcedParts = {};
+  
+  // Remove all sourced styling
+  const bomRows = document.querySelectorAll('#bombody tr');
+  bomRows.forEach(row => {
+    row.classList.remove('sourced');
+    row.style.backgroundColor = '';
+    row.title = '';
+    
+    const indicator = row.querySelector('.sourced-indicator');
+    if (indicator) indicator.remove();
+  });
+  
+  alert('Sourced parts cleared');
+}
+
+// ============================================
+// SAVE BOM
+// ============================================
+
+function saveSourcedBOM() {
+  // Build CSV from current BOM data
+  const bomList = getSelectedBomList();
+  const lines = [];
+  
+  // Headers
+  const headers = ['#', 'References', 'Value', 'Footprint', 'Qty', 'LCSC Part #', 'Supplier', 'Supplier Part #', 'Mfg Part #', 'Stock', 'Price'];
+  lines.push(headers.join(','));
+  
+  // Data rows
+  let rowNum = 1;
+  for (const bomentry of bomList) {
+    if (filter && !entryMatches(bomentry)) continue;
+    
+    let references = bomentry;
+    if (reflookup) {
+      references = findRefInEntry(bomentry);
+      if (references.length === 0) continue;
+    }
+    
+    const refString = references.map(r => r[0]).join(', ');
+    const refIndex = references[0][1];
+    
+    const valueIndex = config.fields.indexOf("Value");
+    const footprintIndex = config.fields.indexOf("Footprint");
+    
+    const value = valueIndex >= 0 ? pcbdata.bom.fields[refIndex][valueIndex] : '';
+    const footprint = footprintIndex >= 0 ? pcbdata.bom.fields[refIndex][footprintIndex] : '';
+    
+    // Check if we have sourced data
+    const sourced = sourcedParts[refString];
+    
+    const row = [
+      rowNum++,
+      `"${refString}"`,
+      `"${value}"`,
+      `"${footprint}"`,
+      references.length,
+      sourced?.lcscPart || '',
+      sourced?.supplierKey || '',
+      sourced?.partNumber || '',
+      sourced?.manufacturerPartNumber || '',
+      sourced?.stock || '',
+      sourced?.price ? sourced.price.toFixed(4) : ''
+    ];
+    
+    lines.push(row.join(','));
+  }
+  
+  // Download
+  const csv = lines.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = (pcbdata.metadata.title || 'bom') + '_sourced.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// Make functions available globally
+window.toggleSupplier = toggleSupplier;
+window.batchSearchParts = batchSearchParts;
+window.clearSourcedParts = clearSourcedParts;
+window.saveSourcedBOM = saveSourcedBOM;
 </script>
 
 <style>
-#part-search-panel {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+/* Sourced row styling */
+#bombody tr.sourced {
+  font-weight: normal;
 }
-#part-search-panel label {
-  font-size: 14px;
-}
-#part-search-panel input[type="text"],
-#part-search-panel select {
-  font-size: 14px;
+#bombody tr.sourced td {
+  border-left: 3px solid #28a745;
 }
 </style>
 ///USERFOOTER///
