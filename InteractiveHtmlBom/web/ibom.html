@@ -307,23 +307,23 @@
                onclick="saveBomTable('clipboard')"></button>
         </div>
         <!-- Supplier Selection Buttons -->
-        <div class="hideonprint" style="float: left; margin-left: 10px; display: flex; gap: 5px; align-items: center;">
-          <span style="font-size: 12px; color: #666; margin-right: 5px;">Suppliers:</span>
+        <div class="hideonprint" style="float: left; margin-left: 10px; display: flex; gap: 8px; align-items: center;">
+          <span style="font-size: 12px; color: #666; margin-right: 8px;">Suppliers:</span>
           <button id="btn-jlcpcb" title="Select JLCPCB" onclick="toggleSupplier('jlcpcb')"
-               style="padding: 5px 10px; border: 2px solid #1a73e8; background: white; color: #1a73e8; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">JLCPCB</button>
+               style="min-width: 75px; padding: 6px 14px; border: 2px solid #1a73e8; background: white; color: #1a73e8; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">JLCPCB</button>
           <button id="btn-digikey" title="Select Digi-Key" onclick="toggleSupplier('digikey')"
-               style="padding: 5px 10px; border: 2px solid #e74c3c; background: white; color: #e74c3c; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">DigiKey</button>
+               style="min-width: 75px; padding: 6px 14px; border: 2px solid #e74c3c; background: white; color: #e74c3c; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">DigiKey</button>
           <button id="btn-mouser" title="Select Mouser" onclick="toggleSupplier('mouser')"
-               style="padding: 5px 10px; border: 2px solid #17a2b8; background: white; color: #17a2b8; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Mouser</button>
+               style="min-width: 75px; padding: 6px 14px; border: 2px solid #17a2b8; background: white; color: #17a2b8; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Mouser</button>
         </div>
         <!-- Action Buttons -->
-        <div class="hideonprint" style="float: right; display: flex; gap: 5px;">
+        <div class="hideonprint" style="float: right; display: flex; gap: 8px;">
           <button id="btn-search-parts" title="Search all BOM components from selected suppliers" onclick="batchSearchParts()"
-               style="padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">🔍 Source Parts</button>
+               style="min-width: 110px; padding: 6px 16px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">🔍 Source Parts</button>
           <button id="btn-clear" title="Clear all sourced part data" onclick="clearSourcedParts()"
-               style="padding: 6px 12px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Clear</button>
+               style="min-width: 70px; padding: 6px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Clear</button>
           <button id="btn-save-bom" title="Save BOM to CSV file" onclick="saveSourcedBOM()"
-               style="padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">💾 Save</button>
+               style="min-width: 70px; padding: 6px 16px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">💾 Save</button>
         </div>
       </div>
       <div id="dbg"></div>
@@ -377,8 +377,8 @@ let sourcedParts = {}; // Store sourced parts by reference
 let apiConfigured = { jlcpcb: true, digikey: false, mouser: false };
 let batchSearchAborted = false;
 
-// Initialize on load
-document.addEventListener('DOMContentLoaded', function() {
+// Initialize after page loads - wait for pcbdata to be available
+function initPartsSourcing() {
   // Check API configuration
   fetch(BOM_API_URL + '/api/config')
     .then(r => r.json())
@@ -398,7 +398,15 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Initialize supplier button states
   updateSupplierButtonStates();
-});
+}
+
+// Run initialization when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPartsSourcing);
+} else {
+  // DOM already loaded
+  setTimeout(initPartsSourcing, 100);
+}
 
 // ============================================
 // SUPPLIER SELECTION
@@ -452,8 +460,22 @@ async function batchSearchParts() {
     return;
   }
   
+  // Check if pcbdata is available
+  if (typeof pcbdata === 'undefined' || !pcbdata || !pcbdata.bom) {
+    alert('BOM data not loaded yet. Please wait for the page to fully load and try again.');
+    return;
+  }
+  
   // Get BOM entries from pcbdata
-  const bomEntries = getBOMEntriesForSearch();
+  let bomEntries;
+  try {
+    bomEntries = getBOMEntriesForSearch();
+  } catch (e) {
+    console.error('Error getting BOM entries:', e);
+    alert('Error reading BOM data: ' + e.message);
+    return;
+  }
+  
   if (bomEntries.length === 0) {
     alert('No components to search');
     return;
@@ -474,6 +496,7 @@ async function batchSearchParts() {
   let matched = 0;
   let notFound = 0;
   let errors = 0;
+  const errorDetails = [];
   
   const suppliers = Array.from(selectedSuppliers);
   
@@ -497,11 +520,13 @@ async function batchSearchParts() {
       }
     } catch (e) {
       errors++;
+      const errorMsg = e.message || String(e);
+      errorDetails.push(`${entry.reference}: ${errorMsg}`);
       console.error('Search error for', entry.reference, e);
     }
     
     // Small delay to avoid overwhelming the API
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 150));
   }
   
   // Hide progress
@@ -512,7 +537,12 @@ async function batchSearchParts() {
   let message = `Parts Sourcing Complete!\n\n`;
   message += `✅ Matched: ${matched}\n`;
   message += `❌ Not Found: ${notFound}\n`;
-  if (errors > 0) message += `⚠️ Errors: ${errors}\n`;
+  if (errors > 0) {
+    message += `⚠️ Errors: ${errors}\n`;
+    if (errors <= 5) {
+      message += `\nError details:\n${errorDetails.join('\n')}`;
+    }
+  }
   message += `\nTotal processed: ${processed}`;
   
   alert(message);
@@ -521,38 +551,62 @@ async function batchSearchParts() {
 function getBOMEntriesForSearch() {
   const entries = [];
   
-  // Get the current BOM list
-  const bomList = getSelectedBomList();
+  // Safety check for required globals
+  if (typeof pcbdata === 'undefined' || !pcbdata || !pcbdata.bom) {
+    console.error('pcbdata not available');
+    return entries;
+  }
+  if (typeof config === 'undefined' || !config || !config.fields) {
+    console.error('config not available');
+    return entries;
+  }
+  
+  // Get the current BOM list - use the global function if available
+  let bomList;
+  if (typeof getSelectedBomList === 'function') {
+    bomList = getSelectedBomList();
+  } else {
+    // Fallback: directly access pcbdata
+    bomList = pcbdata.bom.both || pcbdata.bom.F || [];
+  }
+  
+  // Get filter value safely
+  const currentFilter = typeof filter !== 'undefined' ? filter : '';
+  const currentReflookup = typeof reflookup !== 'undefined' ? reflookup : '';
   
   for (const bomentry of bomList) {
-    // Skip if filtered
-    if (filter && !entryMatches(bomentry)) continue;
-    
-    // Get references
-    let references = bomentry;
-    if (reflookup) {
-      references = findRefInEntry(bomentry);
-      if (references.length === 0) continue;
-    }
-    
-    // Get value and footprint
-    const refString = references.map(r => r[0]).join(', ');
-    const refIndex = references[0][1];
-    
-    const valueIndex = config.fields.indexOf("Value");
-    const footprintIndex = config.fields.indexOf("Footprint");
-    
-    const value = valueIndex >= 0 ? pcbdata.bom.fields[refIndex][valueIndex] : '';
-    const footprint = footprintIndex >= 0 ? pcbdata.bom.fields[refIndex][footprintIndex] : '';
-    
-    // Skip DNP or empty values
-    if (value && value.toUpperCase() !== 'DNP' && value.trim() !== '') {
-      entries.push({
-        reference: refString,
-        value: value,
-        footprint: extractFootprintCode(footprint),
-        refIndex: refIndex
-      });
+    try {
+      // Skip if filtered
+      if (currentFilter && typeof entryMatches === 'function' && !entryMatches(bomentry)) continue;
+      
+      // Get references
+      let references = bomentry;
+      if (currentReflookup && typeof findRefInEntry === 'function') {
+        references = findRefInEntry(bomentry);
+        if (references.length === 0) continue;
+      }
+      
+      // Get value and footprint
+      const refString = references.map(r => r[0]).join(', ');
+      const refIndex = references[0][1];
+      
+      const valueIndex = config.fields.indexOf("Value");
+      const footprintIndex = config.fields.indexOf("Footprint");
+      
+      const value = valueIndex >= 0 ? (pcbdata.bom.fields[refIndex]?.[valueIndex] || '') : '';
+      const footprint = footprintIndex >= 0 ? (pcbdata.bom.fields[refIndex]?.[footprintIndex] || '') : '';
+      
+      // Skip DNP or empty values
+      if (value && value.toUpperCase() !== 'DNP' && value.trim() !== '') {
+        entries.push({
+          reference: refString,
+          value: value,
+          footprint: extractFootprintCode(footprint),
+          refIndex: refIndex
+        });
+      }
+    } catch (e) {
+      console.error('Error processing BOM entry:', e);
     }
   }
   
