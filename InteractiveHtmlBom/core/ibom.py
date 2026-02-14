@@ -13,6 +13,7 @@ from .config import Config
 from ..ecad.common import EcadParser, Component
 from ..errors import ParsingException
 from ..compat import get_wx
+from .part_search import get_part_search_html, get_part_search_button_html
 
 
 class Logger(object):
@@ -305,6 +306,11 @@ def generate_file(pcb_file_dir, pcb_file_name, pcbdata, config):
                         get_file_content('userheader.html'))
     html = html.replace('///USERFOOTER///',
                         get_file_content('userfooter.html'))
+    
+    # Inject part search functionality - API URL configuration
+    html = html.replace('let BOM_API_URL = "http://localhost:3000";',
+                        f'let BOM_API_URL = "{config.api_base_url}";')
+    
     # Replace pcbdata last for better performance.
     html = html.replace('///PCBDATA///', pcbdata_js)
 

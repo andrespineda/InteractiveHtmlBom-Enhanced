@@ -403,7 +403,24 @@
 <div id="part-search-overlay" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:9998;" onclick="closePartSearch()"></div>
 
 <script>
+// BOM Parts Sourcing API URL - injected from Python
+let BOM_API_URL = "http://localhost:3000";  // Default, will be replaced
 let partSearchCache = {};
+let apiConfigured = { jlcpcb: true, digikey: false, mouser: false };
+
+// Check API configuration on load
+fetch(BOM_API_URL + '/api/config')
+    .then(r => r.json())
+    .then(data => {
+        if (data.suppliers) {
+            apiConfigured = {
+                jlcpcb: data.suppliers.jlcpcb?.configured || false,
+                digikey: data.suppliers.digikey?.configured || false,
+                mouser: data.suppliers.mouser?.configured || false
+            };
+        }
+    })
+    .catch(e => console.error('API config check failed:', e));
 
 function openPartSearch() {
   // Pre-fill with current selection if available
@@ -464,88 +481,67 @@ function searchParts() {
   document.getElementById('search-input-section').style.display = 'none';
   document.getElementById('search-loading').style.display = 'block';
 
-  const searchPromises = [];
-  const results = {};
+  const suppliers = [];
+  if (useJLCPCB) suppliers.push('jlcpcb');
+  if (useDigiKey) suppliers.push('digikey');
+  if (useMouser) suppliers.push('mouser');
 
-  // JLCPCB search (uses free JLCSearch API)
-  if (useJLCPCB) {
-    const searchQuery = footprint ? `${value} ${footprint}` : value;
-    searchPromises.push(
-      fetch('https://jlcsearch.tscircuit.com/components/list.json?search=' + encodeURIComponent(searchQuery) + '&limit=10&full=true')
-        .then(r => r.json())
-        .then(data => {
-          results['JLCPCB'] = (data.components || []).map(c => ({
-            supplier: 'JLCPCB',
-            part_number: c.mfrPartNo || '',
-            manufacturer: c.mfr || c.manufacturer || '',
-            description: c.description || '',
-            value: value,
-            footprint: c.package || footprint || '',
-            stock: parseInt(c.stock) || 0,
-            price: parseFloat(c.price) || 0,
-            url: 'https://jlcpcb.com/part/' + (c.lsc ? 'C' + c.lsc : c.lcscCode),
-            datasheet: '',
-            lcsc_part: (c.lsc ? 'C' + c.lsc : c.lcscCode) || ''
-          }));
-        })
-        .catch(e => {
-          console.error('JLCPCB search error:', e);
-          results['JLCPCB'] = [];
-        })
-    );
-  }
-
-  // Digi-Key search (redirects to search page)
-  if (useDigiKey) {
-    const searchQuery = footprint ? `${value} ${footprint}` : value;
-    if (type) {
-      searchQuery = `${type} ${searchQuery}`;
-    }
-    results['Digi-Key'] = [{
-      supplier: 'Digi-Key',
-      part_number: '',
-      manufacturer: '',
-      description: 'Click to search Digi-Key for this component',
+  // Call BOM Parts Sourcing API
+  fetch(BOM_API_URL + '/api/parts-search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       value: value,
-      footprint: footprint || '',
-      stock: 0,
-      price: 0,
-      url: 'https://www.digikey.com/en/products/filter?keywords=' + encodeURIComponent(searchQuery),
-      datasheet: '',
-      lcsc_part: ''
-    }];
-  }
-
-  // Mouser search (redirects to search page)
-  if (useMouser) {
-    const searchQuery = footprint ? `${value} ${footprint}` : value;
-    if (type) {
-      searchQuery = `${type} ${searchQuery}`;
-    }
-    results['Mouser'] = [{
-      supplier: 'Mouser',
-      part_number: '',
-      manufacturer: '',
-      description: 'Click to search Mouser for this component',
-      value: value,
-      footprint: footprint || '',
-      stock: 0,
-      price: 0,
-      url: 'https://www.mouser.com/ProductSearch/?Keyword=' + encodeURIComponent(searchQuery),
-      datasheet: '',
-      lcsc_part: ''
-    }];
-  }
-
-  Promise.all(searchPromises).then(() => {
-    partSearchCache[cacheKey] = results;
+      footprint: footprint,
+      componentType: type,
+      suppliers: suppliers,
+      limit: 10
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
     document.getElementById('search-loading').style.display = 'none';
     document.getElementById('search-input-section').style.display = 'block';
-    displaySearchResults(results);
-  }).catch(() => {
+    
+    if (data.success) {
+      const results = {};
+      
+      // Map API response to display format
+      for (const [supplier, parts] of Object.entries(data.results || {})) {
+        results[supplier] = parts.map(p => ({
+          supplier: p.supplier,
+          part_number: p.partNumber,
+          manufacturer: p.manufacturer,
+          manufacturer_part_number: p.manufacturerPartNumber,
+          description: p.description,
+          value: p.value,
+          footprint: p.footprint || p.package,
+          stock: p.stock,
+          price: p.price,
+          currency: p.currency,
+          url: p.url,
+          datasheet: p.datasheet,
+          lcsc_part: p.lcscPart,
+          image: p.image,
+          package: p.package
+        }));
+      }
+      
+      partSearchCache[cacheKey] = results;
+      displaySearchResults(results);
+    } else {
+      document.getElementById('search-results').innerHTML = 
+        '<div style="text-align:center; padding:30px; color:#dc3545;">Search failed: ' + 
+        (data.error || 'Unknown error') + '</div>';
+    }
+  })
+  .catch(error => {
     document.getElementById('search-loading').style.display = 'none';
     document.getElementById('search-input-section').style.display = 'block';
-    alert('Error searching for parts. Please try again.');
+    document.getElementById('search-results').innerHTML = 
+      '<div style="text-align:center; padding:30px; color:#dc3545;">Search error: ' + 
+      error.message + '<br><br><strong>Make sure the BOM Parts Sourcing API is running at ' + BOM_API_URL + '</strong><br><br>' +
+      'Run: <code style="background:#f0f0f0; padding:5px; border-radius:4px;">cd bom-parts-sourcing && bun run dev</code></div>';
   });
 }
 

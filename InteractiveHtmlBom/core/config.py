@@ -43,6 +43,9 @@ class Config:
 
     # Defaults
 
+    # Part Search section
+    api_base_url = 'http://localhost:3000'  # BOM Parts Sourcing API server
+
     # HTML section
     dark_mode = False
     show_pads = True
@@ -159,6 +162,10 @@ class Config:
             self._join(self.board_variant_blacklist)))
         self.dnp_field = f.Read('dnp_field', self.dnp_field)
 
+        # Part Search
+        f.SetPath('/part_search')
+        self.api_base_url = f.Read('api_base_url', self.api_base_url)
+
         # migration from previous settings
         if self.highlight_pin1 == '0':
             self.highlight_pin1 = 'none'
@@ -212,6 +219,10 @@ class Config:
         f.Write('board_variant_blacklist',
                 self._join(self.board_variant_blacklist))
         f.Write('dnp_field', self.dnp_field)
+
+        # Part Search
+        f.SetPath('/part_search')
+        f.Write('api_base_url', self.api_base_url)
         f.Flush()
 
     def set_from_dialog(self, dlg):
@@ -439,6 +450,11 @@ class Config:
                                  'do not populate status. Components with '
                                  'this field not empty will be excluded.')
 
+        # Part Search
+        parser.add_argument('--api-url', default=cls.api_base_url,
+                            help='URL of the BOM Parts Sourcing API server '
+                                 '(default: http://localhost:3000)')
+
     def set_from_args(self, args):
         # type: (argparse.Namespace) -> None
         import math
@@ -483,6 +499,9 @@ class Config:
         self.board_variant_whitelist = self._split(args.variants_whitelist)
         self.board_variant_blacklist = self._split(args.variants_blacklist)
         self.dnp_field = args.dnp_field
+
+        # Part Search
+        self.api_base_url = args.api_url
 
     def get_html_config(self):
         import json

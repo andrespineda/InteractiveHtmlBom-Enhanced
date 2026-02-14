@@ -1,29 +1,31 @@
 # InteractiveHtmlBom-Enhanced
 
-Enhanced version of InteractiveHtmlBom with integrated Digi-Key and JLCPCB part search functionality.
+Enhanced version of InteractiveHtmlBom with integrated Digi-Key, Mouser, and JLCPCB part search functionality.
 
 ![icon](https://i.imgur.com/js4kDOn.png)
 
 This is a fork of the excellent [InteractiveHtmlBom](https://github.com/openscopeproject/InteractiveHtmlBom) plugin for KiCad, with added **component parts search functionality** that allows you to quickly find and purchase components from major suppliers directly from the generated BOM HTML page.
 
-## What's New
+## ⚡ What's New - Full API Integration!
 
-### 🔍 Component Parts Search
+### 🔍 Component Parts Search with Real-Time Data
 
-The enhanced version adds a powerful part search feature that integrates directly with:
+The enhanced version now connects to the **BOM Parts Sourcing API** for full integration with all three major suppliers:
 
-- **JLCPCB** - Full API integration using the free JLCSearch API with real-time stock and pricing
-- **Digi-Key** - Direct search link to Digi-Key's component catalog
-- **Mouser** - Direct search link to Mouser's component catalog
+- **JLCPCB** - Full API integration with real-time stock, pricing, and LCSC part numbers
+- **Digi-Key** - Full API integration with stock, pricing, and datasheets
+- **Mouser** - Full API integration with stock, pricing, and datasheets
 
 #### Key Features:
 
+- **Real-time data**: Stock levels, pricing, and specifications from all suppliers
+- **JLCPCB Priority**: JLCPCB results are shown first (China-based, no import needed for PCBA)
 - **Pre-filled search**: Clicking the "🔍 Parts" button automatically pre-fills the component value and footprint from the selected BOM row
-- **Real-time LCSC parts**: JLCPCB search shows LCSC part numbers, stock levels, and pricing
-- **Multi-supplier search**: Search multiple suppliers simultaneously with one click
+- **Multi-supplier search**: Search all suppliers simultaneously with one click
 - **Smart caching**: Search results are cached to avoid repeated API calls
-- **Stock awareness**: See at a glance which parts are in stock
+- **Stock awareness**: See at a glance which parts are in stock with color coding
 - **One-click purchase**: Direct links to purchase pages for each supplier
+- **Datasheet links**: Direct links to component datasheets when available
 
 ## Original Features
 
@@ -40,6 +42,22 @@ All original InteractiveHtmlBom features are preserved:
 - And all other original features...
 
 ## Installation
+
+### Prerequisites
+
+1. **BOM Parts Sourcing API** - This plugin requires the BOM Parts Sourcing API server to be running:
+   ```bash
+   git clone https://github.com/andrespineda/bom-parts-sourcing.git
+   cd bom-parts-sourcing
+   bun install
+   bun run dev
+   ```
+   The API server runs on `http://localhost:3000` by default.
+
+2. **API Keys** (optional but recommended):
+   - **Digi-Key**: Get credentials at [developer.digikey.com](https://developer.digikey.com/)
+   - **Mouser**: Get API key at [mouser.com/api](https://www.mouser.com/api/)
+   - **JLCPCB**: No API key needed (uses free JLCSearch API)
 
 ### Method 1: Plugin Directory (Recommended for KiCad 7+)
 
@@ -128,65 +146,58 @@ For **Digi-Key** and **Mouser**, you'll see:
 
 ## API Integration Details
 
-### JLCPCB / JLCSearch API
+### BOM Parts Sourcing API
 
-The enhanced version uses the **JLCSearch API** (provided by tscircuit) for JLCPCB part searches:
+This plugin now uses the **BOM Parts Sourcing API** server for all part searches. This provides:
 
-- **Free to use** - No API key required
-- **Real-time data** - Live stock and pricing from JLCPCB
-- **1.5M+ parts** - Comprehensive component database
-- **No CORS issues** - Works directly from browser
+- **CORS-free access** to all supplier APIs
+- **Secure API key storage** on the server
+- **Unified search interface** across all suppliers
+- **Real-time stock and pricing** from all sources
 
-**API Endpoint**: `https://jlcsearch.tscircuit.com/components/list.json`
+### Configuration
 
-### Digi-Key and Mouser Integration
+You can configure the API server URL via:
 
-**Current Implementation:**
-The current version provides **direct search links** to Digi-Key and Mouser websites with pre-filled search parameters. This allows quick navigation to supplier websites but does not provide real-time part data, pricing, or stock information.
+1. **Command line**: `--api-url http://localhost:3000`
+2. **Config file**: Edit `ibom.config.ini` and add:
+   ```ini
+   [part_search]
+   api_base_url = http://localhost:3000
+   ```
 
-**Limitations:**
-- Requires manual clicking to view results
-- No pricing or stock information
-- Slower workflow compared to JLCPCB integration
+### Supplier-Specific Details
 
-**Current URLs:**
-- Digi-Key: `https://www.digikey.com/en/products/filter?keywords=<search>`
-- Mouser: `https://www.mouser.com/ProductSearch/?Keyword=<search>`
+#### JLCPCB
+- Uses JLCSearch API (free, no API key required)
+- 1.5M+ parts database
+- Returns LCSC part numbers for JLCPCB assembly
+
+#### Digi-Key
+- Requires API credentials (Client ID + Client Secret)
+- Subscribe to "ProductInformation V4" API
+- Returns real-time stock, pricing, and datasheets
+
+#### Mouser
+- Requires API key
+- Returns real-time stock, pricing, and datasheets
 
 ---
 
-### For Future Enhancement: Full API Integration
+## Understanding Results
 
-**For real-time part data** from Digi-Key and Mouser APIs, you would need to implement a server-side backend. This would:
+For all suppliers, you'll see:
+- **Part Number**: Manufacturer's part number
+- **Manufacturer**: Component manufacturer
+- **Description**: Component description from supplier
+- **Stock**: Current stock level (green = in stock, red = out of stock)
+- **Price**: Unit price in USD
+- **Footprint/Package**: Package type
+- **Datasheet**: Link to datasheet (when available)
+- **View Part**: Direct link to supplier's purchase page
 
-1. Handle API authentication securely (store API keys server-side)
-2. Proxy API requests to avoid CORS issues
-3. Cache responses to reduce API calls
-4. Provide proper error handling and rate limiting
-5. Return JSON data to frontend for display
-
-**Benefits of Server-Side Integration:**
-- Real-time stock, pricing, and specifications
-- Automatic part data display in BOM
-- Better user experience
-- More reliable sourcing decisions
-- API rate limiting for production use
-
-**Implementation Options:**
-
-Would you like me to:
-
-1. **Keep current direct-link approach** (simpler, no backend needed)
-2. **Create a Python Flask/FastAPI backend** for full API integration (recommended for production)
-
-Let me know your preference and I'll implement accordingly!
-
-**For Future Enhancement:**
-If you'd like full API integration, consider creating a Python Flask or FastAPI backend that:
-- Stores API keys securely
-- Provides REST endpoints for part search
-- Returns JSON data to the frontend
-- Can be integrated with the existing HTML BOM UI
+For **JLCPCB**, you'll also see:
+- **LCSC Part Number**: The JLCPCB catalog number (e.g., C106224)
 
 ## Workflow Example
 
@@ -283,6 +294,15 @@ We're particularly interested in:
 
 ## Troubleshooting
 
+### "Search error: Failed to fetch" or connection errors
+
+- Ensure the BOM Parts Sourcing API is running:
+  ```bash
+  cd bom-parts-sourcing && bun run dev
+  ```
+- Check the API URL configuration matches where the API is running
+- Verify no firewall is blocking port 3000
+
 ### "🔍 Parts" button not visible
 
 - Ensure you're using the enhanced version from this repository
@@ -291,23 +311,27 @@ We're particularly interested in:
 
 ### Search not returning results
 
-- **For JLCPCB**: Check your internet connection, the API is online
-- **For Digi-Key/Mouser**: These are search links - verify the URL opens correctly
+- **For all suppliers**: Check your internet connection
+- **For Digi-Key/Mouser**: Verify API keys are configured in the BOM Parts Sourcing API's `.env` file
 - Try with simpler search terms (just value, or just footprint)
 - Check that the component value format is correct (e.g., "100K" not "100 k")
+
+### Digi-Key shows "not configured"
+
+- Add your Digi-Key credentials to the BOM Parts Sourcing API's `.env` file
+- Ensure you've subscribed to "ProductInformation V4" API in DigiKey developer portal
+- Restart the API server after adding credentials
+
+### Mouser shows "not configured"
+
+- Add your Mouser API key to the BOM Parts Sourcing API's `.env` file
+- Restart the API server after adding the key
 
 ### Part search panel doesn't open
 
 - Check browser console for JavaScript errors (F12 → Console)
 - Ensure no other scripts are conflicting
 - Try in a different browser (Chrome, Firefox, Edge)
-
-### Slow search performance
-
-- **First search**: May be slower as caches are built
-- **Subsequent searches**: Will be faster due to caching
-- **JLCPCB API**: Typically responds in 1-3 seconds
-- Clear cache: Reload the HTML page to reset the cache
 
 ## Development
 
