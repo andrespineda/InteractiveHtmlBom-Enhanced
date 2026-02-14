@@ -75,6 +75,11 @@
               Date
             </td>
           </tr>
+          <tr>
+            <td id="plugin-info" colspan="2" style="font-size: 10pt; color: #666; font-style: italic;">
+              InteractiveHtmlBom-Enhanced with Parts Sourcing • Last Updated: 2026-02-14
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -327,12 +332,15 @@
         </div>
       </div>
       <div id="dbg"></div>
-      <table class="bom" id="bomtable">
-        <thead id="bomhead">
-        </thead>
-        <tbody id="bombody">
-        </tbody>
-      </table>
+      <!-- BOM Table with horizontal scroll wrapper -->
+      <div id="bom-table-wrapper" style="overflow-x: auto; width: 100%;">
+        <table class="bom" id="bomtable">
+          <thead id="bomhead">
+          </thead>
+          <tbody id="bombody">
+          </tbody>
+        </table>
+      </div>
     </div>
     <div id="canvasdiv" class="split split-horizontal">
       <div id="frontcanvas" class="split" touch-action="none" style="overflow: hidden">
@@ -710,6 +718,9 @@ function updateBOMRowWithPart(reference, part) {
         indicator.textContent = '✓';
         firstCell.appendChild(indicator);
       }
+      
+      // Update the sourced column cells
+      addSourcedCellsToRow(row, reference);
     }
   });
 }
@@ -728,7 +739,7 @@ function clearSourcedParts() {
   
   sourcedParts = {};
   
-  // Remove all sourced styling
+  // Remove all sourced styling and cells
   const bomRows = document.querySelectorAll('#bombody tr');
   bomRows.forEach(row => {
     row.classList.remove('sourced');
@@ -737,6 +748,13 @@ function clearSourcedParts() {
     
     const indicator = row.querySelector('.sourced-indicator');
     if (indicator) indicator.remove();
+    
+    // Remove sourced cells
+    const sourcedCells = row.querySelectorAll('.sourced-cell');
+    sourcedCells.forEach(cell => {
+      cell.textContent = '';
+      cell.style.backgroundColor = '';
+    });
   });
   
   alert('Sourced parts cleared');
@@ -813,6 +831,130 @@ window.toggleSupplier = toggleSupplier;
 window.batchSearchParts = batchSearchParts;
 window.clearSourcedParts = clearSourcedParts;
 window.saveSourcedBOM = saveSourcedBOM;
+
+// ============================================
+// ADD EXTRA SOURCED PART COLUMNS TO BOM TABLE
+// ============================================
+
+// Extra columns for sourced parts
+const SOURCED_COLUMNS = [
+  { name: 'Description', key: 'description', width: '150px' },
+  { name: 'Manufacturer', key: 'manufacturer', width: '100px' },
+  { name: 'Mfg Part #', key: 'manufacturerPartNumber', width: '120px' },
+  { name: 'LCSC Part #', key: 'lcscPart', width: '80px' },
+  { name: 'Supplier', key: 'supplierKey', width: '70px' },
+  { name: 'Stock', key: 'stock', width: '60px' },
+  { name: 'Price', key: 'price', width: '60px' }
+];
+
+// Track if columns have been added
+let sourcedColumnsAdded = false;
+
+// Add extra column headers
+function addSourcedColumnHeaders() {
+  const bomhead = document.getElementById('bomhead');
+  if (!bomhead || sourcedColumnsAdded) return;
+  
+  const headerRow = bomhead.querySelector('tr');
+  if (!headerRow) return;
+  
+  SOURCED_COLUMNS.forEach(col => {
+    const th = document.createElement('TH');
+    th.className = 'sourced-column';
+    th.setAttribute('col_name', col.key);
+    th.style.minWidth = col.width;
+    th.style.backgroundColor = '#e8f5e9';
+    th.innerHTML = col.name;
+    headerRow.appendChild(th);
+  });
+  
+  sourcedColumnsAdded = true;
+}
+
+// Add extra cells to a BOM row
+function addSourcedCellsToRow(row, reference) {
+  // Remove existing sourced cells first
+  const existingCells = row.querySelectorAll('.sourced-cell');
+  existingCells.forEach(cell => cell.remove());
+  
+  const part = sourcedParts[reference];
+  
+  SOURCED_COLUMNS.forEach(col => {
+    const td = document.createElement('TD');
+    td.className = 'sourced-cell';
+    td.style.backgroundColor = part ? '#f0fff0' : '';
+    
+    let value = '';
+    if (part && part[col.key] !== undefined && part[col.key] !== null) {
+      if (col.key === 'stock') {
+        value = part[col.key] > 0 ? part[col.key].toLocaleString() : '0';
+      } else if (col.key === 'price') {
+        value = part[col.key] ? '$' + part[col.key].toFixed(4) : '';
+      } else {
+        value = String(part[col.key]);
+      }
+    }
+    
+    td.textContent = value;
+    td.title = value; // Show full text on hover
+    row.appendChild(td);
+  });
+}
+
+// Update all rows with sourced data
+function updateAllBOMRows() {
+  const bombody = document.getElementById('bombody');
+  if (!bombody) return;
+  
+  const rows = bombody.querySelectorAll('tr');
+  rows.forEach(row => {
+    // Get reference from the second cell (References column)
+    const refCell = row.querySelector('td:nth-child(2)');
+    if (refCell) {
+      const reference = refCell.textContent.trim();
+      addSourcedCellsToRow(row, reference);
+    }
+  });
+}
+
+// Observer to detect when BOM table is populated
+function setupBOMObserver() {
+  const bombody = document.getElementById('bombody');
+  if (!bombody) return;
+  
+  const observer = new MutationObserver((mutations) => {
+    // Add headers if not already added
+    addSourcedColumnHeaders();
+    
+    // Update all rows with sourced cells
+    updateAllBOMRows();
+  });
+  
+  observer.observe(bombody, { childList: true, subtree: false });
+}
+
+// Initialize columns when page loads
+function initSourcedColumns() {
+  // Wait for the BOM table to be ready
+  const checkReady = setInterval(() => {
+    const bomhead = document.getElementById('bomhead');
+    const bombody = document.getElementById('bombody');
+    
+    if (bomhead && bombody && bomhead.querySelector('tr')) {
+      clearInterval(checkReady);
+      addSourcedColumnHeaders();
+      updateAllBOMRows();
+      setupBOMObserver();
+    }
+  }, 100);
+  
+  // Stop checking after 10 seconds
+  setTimeout(() => clearInterval(checkReady), 10000);
+}
+
+// Run initialization
+setTimeout(initSourcedColumns, 500);
+
 </script>
 
 <style>
@@ -822,6 +964,52 @@ window.saveSourcedBOM = saveSourcedBOM;
 }
 #bombody tr.sourced td {
   border-left: 3px solid #28a745;
+}
+
+/* Horizontal scroll wrapper */
+#bom-table-wrapper {
+  overflow-x: auto;
+  width: 100%;
+  margin-top: 1px;
+}
+
+/* BOM table with extra columns */
+#bomtable {
+  min-width: max-content;
+}
+
+/* Sourced column headers */
+.sourced-column {
+  background-color: #d4edda !important;
+  color: #155724;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* Dark mode sourced columns */
+.dark .sourced-column {
+  background-color: #1e4620 !important;
+  color: #a8d5a2;
+}
+
+/* Sourced cells */
+.sourced-cell {
+  background-color: #f8fff8;
+  font-size: 9pt;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.dark .sourced-cell {
+  background-color: #1a2e1a;
+}
+
+/* Plugin info row */
+#plugin-info {
+  padding: 2px 5px;
+  border: none;
 }
 </style>
 ///USERFOOTER///
